@@ -1,5 +1,5 @@
 import { addMoney, divMoney, money, mulMoney, percentOf, subMoney, sumBy, toDecimal, type Money } from "@/lib/money";
-import { daysBetween } from "@/lib/format";
+import { daysBetween, pluralize, toDate } from "@/lib/format";
 import { qAdd, qMul, qSub, q, toQ, type Quantity } from "@/lib/units";
 import { STANDARD_WORKING_DAYS_PER_MONTH } from "./attendance";
 import type { AttendanceRecord, Employee, LeaveRequest, Timesheet } from "@/lib/types";
@@ -252,6 +252,56 @@ export function salaryBandUtilisation(
   const span = subMoney(bandMax, bandMin);
   if (toDecimal(span).isZero()) return "0.0";
   return percentOf(subMoney(salary, bandMin), span, 1);
+}
+
+/**
+ * Whole years and whole months of service, as integers only — no fractional
+ * month arithmetic. Months are counted by advancing the anniversary month and
+ * clamping the day, so 31 Jan → 28/29 Feb resolves rather than overflowing.
+ */
+export interface ServiceTenure {
+  years: number;
+  months: number;
+  totalMonths: number;
+  isCompleted: boolean;
+}
+
+export function serviceTenure(joinedOn: string, asOf: string | Date = new Date()): ServiceTenure {
+  const start = new Date(`${joinedOn}T00:00:00`);
+  const end = toDate(asOf);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return { years: 0, months: 0, totalMonths: 0, isCompleted: false };
+  }
+  if (end < start) return { years: 0, months: 0, totalMonths: 0, isCompleted: false };
+
+  let months =
+    (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  const endDay = end.getDate();
+  const daysInAnniversaryMonth = new Date(
+    end.getFullYear(),
+    end.getMonth() + 1,
+    0,
+  ).getDate();
+  if (endDay < Math.min(start.getDate(), daysInAnniversaryMonth)) months -= 1;
+  if (months < 0) months = 0;
+
+  return {
+    years: Math.floor(months / 12),
+    months: months % 12,
+    totalMonths: months,
+    isCompleted: months > 0,
+  };
+}
+
+export function tenureLabel(tenure: ServiceTenure): string {
+  if (tenure.totalMonths === 0) return "Joined this month";
+  if (tenure.years === 0) {
+    return pluralize(tenure.months, "month");
+  }
+  if (tenure.months === 0) {
+    return pluralize(tenure.years, "year");
+  }
+  return `${pluralize(tenure.years, "year")}, ${pluralize(tenure.months, "month")}`;
 }
 
 export function headcountPerProject(
