@@ -40,8 +40,8 @@ export function buildCoreSeed(now: Date = new Date()): CoreSeed {
   const users: User[] = [
     {
       id: "usr_admin",
-      name: "Amara Okonjo",
-      email: "amara.okonjo@buildwell.demo",
+      name: "Amare Okonjo",
+      email: "amare.okonjo@buildwell.demo",
       role: "admin",
       jobTitle: "Managing Director",
       employeeId: "emp_006",
@@ -193,13 +193,13 @@ export function buildCoreSeed(now: Date = new Date()): CoreSeed {
     {
       id: "emp_006",
       employeeNo: "BW-1006",
-      name: "Amara Okonjo",
-      firstName: "Amara",
+      name: "Amare Okonjo",
+      firstName: "Amare",
       lastName: "Okonjo",
       jobTitle: "Managing Director",
       department: "commercial",
       projectId: null,
-      email: "amara.okonjo@buildwell.demo",
+      email: "amare.okonjo@buildwell.demo",
       phone: "+1 512 555 0101",
       nationality: "British",
       status: "active",
