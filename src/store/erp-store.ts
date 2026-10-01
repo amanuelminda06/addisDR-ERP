@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { AUDIT_ACTIONS, logAction } from "@/lib/rules/audit";
 import { buildSeedState, SEED_VERSION, type SeedState } from "@/lib/seed";
 import type { AppNotification, AuditEntry, Role, User } from "@/lib/types";
@@ -20,6 +20,31 @@ export interface ErpStoreState extends SeedState {
 
 function seedState(): SeedState {
   return buildSeedState();
+}
+
+/**
+ * sessionStorage does not exist on the server, and can throw outright when a
+ * browser blocks storage access (private mode, third-party cookie policies).
+ * Falling back to an in-memory store keeps persist wired up in both places
+ * instead of disabling it and leaving hasHydrated() stuck at false.
+ */
+const memoryStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined,
+};
+
+function resolveStorage(): StateStorage {
+  if (typeof window === "undefined") return memoryStorage;
+  try {
+    const store = window.sessionStorage;
+    const probe = `${STORAGE_KEY}__probe`;
+    store.setItem(probe, "1");
+    store.removeItem(probe);
+    return store;
+  } catch {
+    return memoryStorage;
+  }
 }
 
 function actorFor(state: Pick<ErpStoreState, "users" | "activeUserId">): Pick<
@@ -151,7 +176,7 @@ export const useErpStore = create<ErpStoreState>()(
     {
       name: STORAGE_KEY,
       version: 1,
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(resolveStorage),
       skipHydration: true,
       partialize: (state) => ({
         seedVersion: state.seedVersion,
@@ -174,6 +199,21 @@ export const useErpStore = create<ErpStoreState>()(
         if (state.seedVersion !== SEED_VERSION) {
           state.resetDemo();
         }
+      },
+      /**
+       * The store is seeded unconditionally at construction so the server can
+       * render real markup. That means an absent or stale payload must NOT be
+       * distinguished by "is the array empty?" — an empty collection is a
+       * legitimate state. seedVersion is the one-time flag: a missing key means
+       * nothing was ever persisted (keep the in-memory seed), and a mismatched
+       * seedVersion means the payload predates this build and must be rebuilt.
+       */
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<ErpStoreState> | undefined;
+        if (!persisted || persisted.seedVersion !== SEED_VERSION) {
+          return currentState;
+        }
+        return { ...currentState, ...persisted };
       },
     },
   ),

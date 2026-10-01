@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useErpHydrated } from "@/hooks/use-hydrated";
 import { useErpStore } from "@/store/erp-store";
 import {
   allowedActions,
@@ -49,6 +50,7 @@ export function useActiveUser(): User {
 export function useSession(): Session {
   const user = useActiveUser();
   const role = user.role;
+  const isHydrated = useErpHydrated();
 
   return useMemo(() => {
     const sections = visibleSections(role);
@@ -57,7 +59,7 @@ export function useSession(): Session {
       user,
       role,
       roleLabel: role,
-      isHydrated: true,
+      isHydrated,
       can: (action: ActionKey) => canPerformAction(role, action),
       canOpen: (moduleKey: ModuleKey) => canAccessModule(role, moduleKey),
       actions: allowedActions(role),
@@ -68,7 +70,7 @@ export function useSession(): Session {
       coveragePercent:
         sections.length === 0 ? 0 : Math.round((liveCount / sections.length) * 100),
     };
-  }, [user, role]);
+  }, [user, role, isHydrated]);
 }
 
 export function useRoleScopedNavigation(pathname: string) {
